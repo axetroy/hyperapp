@@ -1,4 +1,46 @@
 /**
+ *
+ 例子：
+
+ import { h, app } from "hyperapp"
+
+ const state = {
+  count: 0
+}
+
+ const actions = {
+  down: () => state => ({ count: state.count - 1 }),
+  up: () => state => ({ count: state.count + 1 })
+}
+
+ const view = (state, actions) => (
+ <main>
+ <h1>{state.count}</h1>
+ <button onclick={actions.down}>-</button>
+ <button onclick={actions.up}>+</button>
+ </main>
+ )
+
+ export const main = app(state, actions, view, document.body)
+
+ 运行流程：
+
+ 1. 运行app函数 并返回action列表
+ 2. 运行vnode函数， 获取初始化的虚拟dom
+ 3. 运行init函数， init函数递归自调用
+ 4. 替换action的对应方法 (当触发action时， 触发repaint)
+
+ 当触发repaint的时候：
+ 如果有渲染锁 > 跳过
+ 否则在setTimeout中运行rend函数
+
+ rend函数:
+ 1. 给渲染锁上锁
+ 2. 根据state和actions， 渲染出来的下一个试图
+ 3. 运行patch函数，更新试图
+ */
+
+/**
  * 返回虚拟dom节点
  * @param name
  * @param props
@@ -90,9 +132,11 @@ export function app(state, actions, view, container) {
 
     // 如果当前没有正在选择， 跟更改对应的dom
     if (container && !patchLock) {
+      // 运行patch算法
       root = patch(container, root, node, (node = next));
     }
 
+    // 逐个运行生命周期
     while ((next = lifecycle.pop())) next();
   }
 
@@ -194,10 +238,22 @@ export function app(state, actions, view, container) {
     }
   }
 
+  /**
+   * 获取节点的key
+   * @param node
+   * @returns {null}
+   */
   function getKey(node) {
     return node && node.props ? node.props.key : null;
   }
 
+  /**
+   * 设置元素的key值
+   * @param element
+   * @param name
+   * @param value
+   * @param oldValue
+   */
   function setElementProp(element, name, value, oldValue) {
     if (name === "key") {
     } else if (name === "style") {
@@ -219,6 +275,12 @@ export function app(state, actions, view, container) {
     }
   }
 
+  /**
+   * 创建dom元素
+   * @param node
+   * @param isSVG
+   * @returns {Text | any}
+   */
   function createElement(node, isSVG) {
     if (typeof node === "string") {
       var element = document.createTextNode(node);
@@ -244,6 +306,12 @@ export function app(state, actions, view, container) {
     return element;
   }
 
+  /**
+   * 更新dom元素
+   * @param element
+   * @param oldProps
+   * @param props
+   */
   function updateElement(element, oldProps, props) {
     for (var name in copy(oldProps, props)) {
       if (
@@ -313,10 +381,15 @@ export function app(state, actions, view, container) {
    * @returns {*}
    */
   function patch(parent, element, oldNode, node, isSVG, nextSibling) {
+    // 如果新节点跟旧节点一样， 则跳过
     if (node === oldNode) {
     } else if (null == oldNode) {
+      // 如果旧的节点不存在， 则在父节点前插入一个新节点
       element = parent.insertBefore(createElement(node, isSVG), element);
     } else if (node.name && node.name === oldNode.name) {
+      // 如果节点名称一致， 则更新dom
+
+      // 根据新旧的props， 更新element节点
       updateElement(element, oldNode.props, node.props);
 
       var oldElements = [];
@@ -337,6 +410,7 @@ export function app(state, actions, view, container) {
       var i = 0;
       var j = 0;
 
+      // 更新它下面的子节点
       while (j < node.children.length) {
         var oldChild = oldNode.children[i];
         var newChild = node.children[j];
@@ -378,6 +452,7 @@ export function app(state, actions, view, container) {
         }
       }
 
+      // 移除不存在的key
       while (i < oldNode.children.length) {
         var oldChild = oldNode.children[i];
         if (null == getKey(oldChild)) {
